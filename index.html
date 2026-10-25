@@ -1,4 +1,4 @@
- 
+  
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,99 +6,252 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>YASIR LUDO</title>
 <style>
-body{margin:0;background:#101827;color:white;font-family:Arial;text-align:center;padding:15px}
-h1{color:#ffd43b}
-button,select{padding:12px;margin:5px;border:0;border-radius:8px;font-weight:bold}
-#roll{background:#22c55e;color:white;font-size:20px}
-#board{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:420px;margin:18px auto}
-.home{height:150px;border:4px solid white;border-radius:12px;display:grid;grid-template-columns:1fr 1fr;place-items:center}
-.red{background:#ef4444}.green{background:#16a34a}.yellow{background:#eab308}.blue{background:#2563eb}
-.token{background:white;color:#111;border-radius:50%;width:48px;height:48px;font-size:18px}
-#status{padding:12px;background:#334155;border-radius:8px}
-#dice{font-size:48px;margin:10px}
+*{box-sizing:border-box}
+body{margin:0;padding:14px;background:#101827;color:white;font-family:Arial;text-align:center}
+h1{color:#ffd43b;margin:8px}
+p{color:#dbeafe}
+#game{width:min(94vw,600px);margin:14px auto}
+canvas{width:100%;height:auto;background:white;border:4px solid white;border-radius:10px;display:block;touch-action:manipulation}
+button,select{padding:12px;border:0;border-radius:9px;font-weight:bold;margin:5px}
+#roll{background:#22c55e;color:white;font-size:19px}
+#reset{background:#facc15;color:#111}
+#dice{font-size:42px;margin:8px}
+#status{max-width:600px;margin:10px auto;padding:13px;background:#334155;border-radius:10px}
+.small{font-size:12px;color:#cbd5e1}
 </style>
 </head>
 <body>
 <h1>🎲 YASIR LUDO</h1>
-<p>Play Ludo with friends on one phone!</p>
-<label>Players: </label>
-<select id="players" onchange="resetGame()">
+<p>Play together on one phone!</p>
+<label for="players">Players: </label>
+<select id="players">
 <option value="2">2 Players</option>
 <option value="3">3 Players</option>
 <option value="4" selected>4 Players</option>
 </select>
 <div id="dice">🎲</div>
-<button id="roll" onclick="roll()">ROLL DICE</button>
-<div id="status">Red player's turn. Roll the dice!</div>
-<div id="board">
-<div class="home red" id="home0"></div>
-<div class="home green" id="home1"></div>
-<div class="home yellow" id="home2"></div>
-<div class="home blue" id="home3"></div>
-</div>
+<button id="roll">ROLL DICE</button>
+<button id="reset">NEW GAME</button>
+<div id="status">Red's turn. Roll the dice!</div>
+<div id="game"><canvas id="board" width="600" height="600"></canvas></div>
+<p class="small">Roll 6 to leave home. Capture opponents and bring all four tokens to the finish!</p>
+
 <script>
+const cv=document.getElementById("board");
+const ctx=cv.getContext("2d");
+const N=40;
+const colors=["#ef4444","#16a34a","#eab308","#2563eb"];
 const names=["Red","Green","Yellow","Blue"];
-let pieces,turn,dice,waiting,winner;
+const starts=[0,13,26,39];
+const safe=[0,8,13,21,26,34,39,47];
+
+// Coordinates are [row,column] on a 15 x 15 board.
+const path=[
+[6,1],[6,2],[6,3],[6,4],[6,5],
+[5,6],[4,6],[3,6],[2,6],[1,6],
+[0,6],[0,7],[0,8],[1,8],[2,8],[3,8],[4,8],[5,8],
+[6,9],[6,10],[6,11],[6,12],[6,13],[6,14],
+[7,14],[8,14],[8,13],[8,12],[8,11],[8,10],[8,9],
+[9,8],[10,8],[11,8],[12,8],[13,8],[14,8],
+[14,7],[14,6],[13,6],[12,6],[11,6],[10,6],[9,6],
+[8,5],[8,4],[8,3],[8,2],[8,1],[8,0],[7,0],[6,0]
+];
+const lanes=[
+[[7,1],[7,2],[7,3],[7,4],[7,5]],
+[[1,7],[2,7],[3,7],[4,7],[5,7]],
+[[7,13],[7,12],[7,11],[7,10],[7,9]],
+[[13,7],[12,7],[11,7],[10,7],[9,7]]
+];
+const homes=[
+[[10,1],[10,4],[13,1],[13,4]],
+[[1,1],[1,4],[4,1],[4,4]],
+[[1,10],[1,13],[4,10],[4,13]],
+[[10,10],[10,13],[13,10],[13,13]]
+];
+let pieces,turn,dice,waiting,winner,active,gameTimer;
+
+function cell(r,c,color,stroke="#64748b"){
+ ctx.fillStyle=color;
+ ctx.fillRect(c*N,r*N,N,N);
+ ctx.strokeStyle=stroke;
+ ctx.lineWidth=1;
+ ctx.strokeRect(c*N,r*N,N,N);
+}
+function homeArea(r,c,p){
+ ctx.fillStyle=colors[p];
+ ctx.fillRect(c*N,r*N,6*N,6*N);
+ ctx.strokeStyle="#fff";ctx.lineWidth=3;
+ ctx.strokeRect((c+1)*N,(r+1)*N,4*N,4*N);
+ for(const [rr,cc] of homes[p]){
+  ctx.beginPath();
+  ctx.arc((cc+.5)*N,(rr+.5)*N,13,0,Math.PI*2);
+  ctx.fillStyle="#fff";ctx.fill();
+  ctx.strokeStyle="#333";ctx.lineWidth=2;ctx.stroke();
+ }
+}
+function drawBoard(){
+ ctx.clearRect(0,0,600,600);
+ ctx.fillStyle="#fff";ctx.fillRect(0,0,600,600);
+ homeArea(9,0,0);
+ homeArea(0,0,1);
+ homeArea(0,9,2);
+ homeArea(9,9,3);
+
+ path.forEach(([r,c],i)=>{
+  let p=colors[0];
+  if(i>=13&&i<26)p=colors[1];
+  if(i>=26&&i<39)p=colors[2];
+  if(i>=39)p=colors[3];
+  cell(r,c,"#fff");
+  if(safe.includes(i)){
+   ctx.beginPath();ctx.arc((c+.5)*N,(r+.5)*N,9,0,Math.PI*2);
+   ctx.fillStyle=p;ctx.fill();
+   ctx.fillStyle="#fff";ctx.font="bold 13px Arial";
+   ctx.textAlign="center";ctx.textBaseline="middle";
+   ctx.fillText("★",(c+.5)*N,(r+.5)*N);
+  }
+ });
+ lanes.forEach((lane,p)=>lane.forEach(([r,c])=>cell(r,c,colors[p])));
+ // Centre finish: four coloured triangles.
+ const x=7*N,y=7*N;
+ const triangles=[
+  {p:0,pts:[[6*N,6*N],[9*N,6*N],[7.5*N,7.5*N]]},
+  {p:1,pts:[[6*N,6*N],[6*N,9*N],[7.5*N,7.5*N]]},
+  {p:2,pts:[[6*N,9*N],[9*N,9*N],[7.5*N,7.5*N]]},
+  {p:3,pts:[[9*N,6*N],[9*N,9*N],[7.5*N,7.5*N]]}
+ ];
+ triangles.forEach(t=>{
+  ctx.beginPath();ctx.moveTo(...t.pts[0]);ctx.lineTo(...t.pts[1]);ctx.lineTo(...t.pts[2]);ctx.closePath();
+  ctx.fillStyle=colors[t.p];ctx.fill();
+  ctx.strokeStyle="#fff";ctx.stroke();
+ });
+ ctx.fillStyle="#111";ctx.font="bold 13px Arial";
+ ctx.textAlign="center";ctx.textBaseline="middle";
+ ctx.fillText("FINISH",300,300);
+ drawTokens();
+}
+function tokenPosition(p,i){
+ const pos=pieces[p][i];
+ if(pos<0)return homes[p][i];
+ if(pos<=50)return path[(starts[p]+pos)%52];
+ if(pos<=55)return lanes[p][pos-51];
+ return [7,7];
+}
+function drawTokens(){
+ for(let p=0;p<4;p++){
+  for(let i=0;i<4;i++){
+   let [r,c]=tokenPosition(p,i);
+   let same=[];
+   for(let pp=0;pp<=p;pp++){
+    for(let ii=0;ii<4;ii++){
+     if(pp===p&&ii>=i)break;
+     let [rr,cc]=tokenPosition(pp,ii);
+     if(rr===r&&cc===c)same.push(1);
+    }
+   }
+   const offset=same.length?((same.length%3)-1)*5:0;
+   const x=(c+.5)*N+offset,y=(r+.5)*N+offset;
+   ctx.beginPath();ctx.arc(x,y,12,0,Math.PI*2);
+   ctx.fillStyle=colors[p];ctx.fill();
+   ctx.lineWidth=2;ctx.strokeStyle="#fff";ctx.stroke();
+   ctx.fillStyle="#fff";ctx.font="bold 11px Arial";
+   ctx.textAlign="center";ctx.textBaseline="middle";
+   ctx.fillText(String(i+1),x,y);
+  }
+ }
+}
+function current(){return active[turn]}
+function status(s){document.getElementById("status").textContent=s}
 function resetGame(){
-pieces=names.map(()=>[-1,-1,-1,-1]);
-turn=0;dice=0;waiting=false;winner=false;
-document.getElementById("dice").textContent="🎲";
-document.getElementById("status").textContent="Red player's turn. Roll the dice!";
-render();
+ clearTimeout(gameTimer);
+ active=Number(document.getElementById("players").value)===2?[0,2]:
+        Number(document.getElementById("players").value)===3?[0,1,2]:[0,1,2,3];
+ pieces=names.map(()=>[-1,-1,-1,-1]);
+ turn=0;dice=0;waiting=false;winner=false;
+ document.getElementById("dice").textContent="🎲";
+ document.getElementById("roll").disabled=false;
+ status(names[current()]+"'s turn. Roll the dice!");
+ drawBoard();
 }
-function render(){
-for(let p=0;p<4;p++){
-let home=document.getElementById("home"+p);
-home.innerHTML="";
-home.style.display=p<Number(document.getElementById("players").value)?"grid":"none";
-pieces[p].forEach((pos,i)=>{
-let b=document.createElement("button");
-b.className="token";
-b.textContent=pos<0?"🏠":pos>=56?"🏆":pos;
-b.onclick=()=>move(i);
-home.appendChild(b);
-});
+function canMove(p,i,d){
+ const pos=pieces[p][i];
+ if(pos===-1)return d===6;
+ return pos+d<=56;
 }
+function rollDice(){
+ if(waiting||winner)return;
+ dice=Math.floor(Math.random()*6)+1;
+ document.getElementById("dice").textContent=["","⚀","⚁","⚂","⚃","⚄","⚅"][dice];
+ const p=current();
+ const options=pieces[p].some((v,i)=>canMove(p,i,dice));
+ if(!options){
+  status(names[p]+" rolled "+dice+". No move available.");
+  gameTimer=setTimeout(nextTurn,900);
+  return;
+ }
+ waiting=true;
+ status(names[p]+" rolled "+dice+". Tap one of your "+names[p]+" tokens.");
 }
-function roll(){
-if(waiting||winner)return;
-dice=Math.floor(Math.random()*6)+1;
-document.getElementById("dice").textContent=["","⚀","⚁","⚂","⚃","⚄","⚅"][dice];
-waiting=true;
-let possible=pieces[turn].some(x=>(x<0&&dice===6)||(x>=0&&x+dice<=56));
-if(!possible){
-document.getElementById("status").textContent=names[turn]+" rolled "+dice+". No move; next player's turn.";
-setTimeout(next,900);
-}else{
-document.getElementById("status").textContent=names[turn]+" rolled "+dice+". Tap one of your tokens.";
+function moveToken(i){
+ if(!waiting||winner)return;
+ const p=current();
+ if(!canMove(p,i,dice)){
+  status("That token cannot move. Choose another token.");
+  return;
+ }
+ let pos=pieces[p][i];
+ pieces[p][i]=pos===-1?0:pos+dice;
+ // Capture an opponent on an unsafe track square.
+ const newPos=pieces[p][i];
+ if(newPos<=50){
+  const square=(starts[p]+newPos)%52;
+  if(!safe.includes(square)){
+   for(let q=0;q<4;q++){
+    if(q===p)continue;
+    pieces[q]=pieces[q].map(v=>{
+     if(v>=0&&v<=50&&(starts[q]+v)%52===square)return -1;
+     return v;
+    });
+   }
+  }
+ }
+ drawBoard();
+ waiting=false;
+ if(pieces[p].every(v=>v===56)){
+  winner=true;
+  status("🏆 "+names[p]+" wins YASIR LUDO!");
+  document.getElementById("roll").disabled=true;
+  return;
+ }
+ if(dice===6){
+  status(names[p]+" rolled 6! Roll again.");
+ }else{
+  gameTimer=setTimeout(nextTurn,650);
+ }
 }
+function nextTurn(){
+ waiting=false;
+ turn=(turn+1)%active.length;
+ status(names[current()]+"'s turn. Roll the dice!");
 }
-function move(i){
-if(!waiting||winner)return;
-let pos=pieces[turn][i];
-if(pos<0&&dice!==6)return;
-if(pos<0)pieces[turn][i]=0;
-else if(pos+dice<=56)pieces[turn][i]+=dice;
-else return;
-if(pieces[turn].every(x=>x===56)){
-winner=true;
-document.getElementById("status").textContent="🏆 "+names[turn]+" wins YASIR LUDO!";
-}else{
-document.getElementById("status").textContent=names[turn]+" moved a token!";
+function canvasClick(e){
+ const rect=cv.getBoundingClientRect();
+ const x=(e.clientX-rect.left)*600/rect.width;
+ const y=(e.clientY-rect.top)*600/rect.height;
+ const p=current();
+ if(!waiting||winner)return;
+ for(let i=0;i<4;i++){
+  const [r,c]=tokenPosition(p,i);
+  if(Math.hypot(x-(c+.5)*N,y-(r+.5)*N)<19){
+   moveToken(i);return;
+  }
+ }
+ status("Tap one of your "+names[p]+" tokens.");
 }
-render();
-if(!winner){
-if(dice===6){
-waiting=false;
-document.getElementById("status").textContent=names[turn]+" rolled 6! Roll again.";
-}else setTimeout(next,900);
-}
-}
-function next(){
-waiting=false;
-turn=(turn+1)%Number(document.getElementById("players").value);
-document.getElementById("status").textContent=names[turn]+" player's turn. Roll the dice!";
-}
+cv.addEventListener("click",canvasClick);
+document.getElementById("roll").addEventListener("click",rollDice);
+document.getElementById("reset").addEventListener("click",resetGame);
+document.getElementById("players").addEventListener("change",resetGame);
 resetGame();
 </script>
 </body>
