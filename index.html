@@ -1,59 +1,105 @@
-
+ 
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Yasir Ludo</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>YASIR LUDO</title>
 <style>
-body{margin:0;text-align:center;font-family:Arial;background:#eaf7e9;color:#17351c}
-h1{color:#087c35}
-#board{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;max-width:350px;margin:20px auto}
-.cell{background:white;border:2px solid #b7d8bb;border-radius:8px;min-height:48px;display:flex;align-items:center;justify-content:center;font-size:23px}
-button{background:#078535;color:white;border:0;border-radius:12px;padding:14px 25px;font-size:18px;margin:8px}
-#dice{font-size:45px;margin:12px}
+body{margin:0;background:#101827;color:white;font-family:Arial;text-align:center;padding:15px}
+h1{color:#ffd43b}
+button,select{padding:12px;margin:5px;border:0;border-radius:8px;font-weight:bold}
+#roll{background:#22c55e;color:white;font-size:20px}
+#board{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:420px;margin:18px auto}
+.home{height:150px;border:4px solid white;border-radius:12px;display:grid;grid-template-columns:1fr 1fr;place-items:center}
+.red{background:#ef4444}.green{background:#16a34a}.yellow{background:#eab308}.blue{background:#2563eb}
+.token{background:white;color:#111;border-radius:50%;width:48px;height:48px;font-size:18px}
+#status{padding:12px;background:#334155;border-radius:8px}
+#dice{font-size:48px;margin:10px}
 </style>
 </head>
 <body>
-<h1>🎲 Yasir Ludo</h1>
-<p>Play with your friends!</p>
+<h1>🎲 YASIR LUDO</h1>
+<p>Play Ludo with friends on one phone!</p>
+<label>Players: </label>
+<select id="players" onchange="resetGame()">
+<option value="2">2 Players</option>
+<option value="3">3 Players</option>
+<option value="4" selected>4 Players</option>
+</select>
 <div id="dice">🎲</div>
-<button onclick="roll()">ROLL DICE</button>
-<h3 id="turn">Red Player's Turn</h3>
-<div id="board"></div>
-<p id="msg">Roll the dice to start!</p>
+<button id="roll" onclick="roll()">ROLL DICE</button>
+<div id="status">Red player's turn. Roll the dice!</div>
+<div id="board">
+<div class="home red" id="home0"></div>
+<div class="home green" id="home1"></div>
+<div class="home yellow" id="home2"></div>
+<div class="home blue" id="home3"></div>
+</div>
 <script>
-const colors=["🔴","🟢","🟡","🔵"];
-let player=0,steps=[0,0,0,0];
-const board=document.getElementById("board");
-for(let i=0;i<25;i++){
- let c=document.createElement("div");
- c.className="cell";c.id="c"+i;
- board.appendChild(c);
+const names=["Red","Green","Yellow","Blue"];
+let pieces,turn,dice,waiting,winner;
+function resetGame(){
+pieces=names.map(()=>[-1,-1,-1,-1]);
+turn=0;dice=0;waiting=false;winner=false;
+document.getElementById("dice").textContent="🎲";
+document.getElementById("status").textContent="Red player's turn. Roll the dice!";
+render();
 }
-function draw(){
- for(let i=0;i<25;i++)document.getElementById("c"+i).textContent="";
- for(let p=0;p<4;p++){
-  let pos=(steps[p]*7+p*5)%25;
-  document.getElementById("c"+pos).textContent+=colors[p];
- }
+function render(){
+for(let p=0;p<4;p++){
+let home=document.getElementById("home"+p);
+home.innerHTML="";
+home.style.display=p<Number(document.getElementById("players").value)?"grid":"none";
+pieces[p].forEach((pos,i)=>{
+let b=document.createElement("button");
+b.className="token";
+b.textContent=pos<0?"🏠":pos>=56?"🏆":pos;
+b.onclick=()=>move(i);
+home.appendChild(b);
+});
+}
 }
 function roll(){
- let n=Math.floor(Math.random()*6)+1;
- document.getElementById("dice").textContent=["⚀","⚁","⚂","⚃","⚄","⚅"][n-1];
- steps[player]+=n;
- if(steps[player]>=20){
-  draw();
-  document.getElementById("msg").textContent=colors[player]+" Player wins! 🏆";
-  document.getElementById("turn").textContent="Game Over!";
-  return;
- }
- draw();
- document.getElementById("msg").textContent=colors[player]+" Player rolled "+n;
- player=(player+1)%4;
- document.getElementById("turn").textContent=colors[player]+" Player's Turn";
+if(waiting||winner)return;
+dice=Math.floor(Math.random()*6)+1;
+document.getElementById("dice").textContent=["","⚀","⚁","⚂","⚃","⚄","⚅"][dice];
+waiting=true;
+let possible=pieces[turn].some(x=>(x<0&&dice===6)||(x>=0&&x+dice<=56));
+if(!possible){
+document.getElementById("status").textContent=names[turn]+" rolled "+dice+". No move; next player's turn.";
+setTimeout(next,900);
+}else{
+document.getElementById("status").textContent=names[turn]+" rolled "+dice+". Tap one of your tokens.";
 }
-draw();
+}
+function move(i){
+if(!waiting||winner)return;
+let pos=pieces[turn][i];
+if(pos<0&&dice!==6)return;
+if(pos<0)pieces[turn][i]=0;
+else if(pos+dice<=56)pieces[turn][i]+=dice;
+else return;
+if(pieces[turn].every(x=>x===56)){
+winner=true;
+document.getElementById("status").textContent="🏆 "+names[turn]+" wins YASIR LUDO!";
+}else{
+document.getElementById("status").textContent=names[turn]+" moved a token!";
+}
+render();
+if(!winner){
+if(dice===6){
+waiting=false;
+document.getElementById("status").textContent=names[turn]+" rolled 6! Roll again.";
+}else setTimeout(next,900);
+}
+}
+function next(){
+waiting=false;
+turn=(turn+1)%Number(document.getElementById("players").value);
+document.getElementById("status").textContent=names[turn]+" player's turn. Roll the dice!";
+}
+resetGame();
 </script>
 </body>
 </html>
