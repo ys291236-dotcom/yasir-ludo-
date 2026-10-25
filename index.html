@@ -1,0 +1,59 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Yasir Ludo</title>
+<style>
+body{margin:0;text-align:center;font-family:Arial;background:#eaf7e9;color:#17351c}
+h1{color:#087c35}
+#board{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;max-width:350px;margin:20px auto}
+.cell{background:white;border:2px solid #b7d8bb;border-radius:8px;min-height:48px;display:flex;align-items:center;justify-content:center;font-size:23px}
+button{background:#078535;color:white;border:0;border-radius:12px;padding:14px 25px;font-size:18px;margin:8px}
+#dice{font-size:45px;margin:12px}
+</style>
+</head>
+<body>
+<h1>🎲 Yasir Ludo</h1>
+<p>Play with your friends!</p>
+<div id="dice">🎲</div>
+<button onclick="roll()">ROLL DICE</button>
+<h3 id="turn">Red Player's Turn</h3>
+<div id="board"></div>
+<p id="msg">Roll the dice to start!</p>
+<script>
+const colors=["🔴","🟢","🟡","🔵"];
+let player=0,steps=[0,0,0,0];
+const board=document.getElementById("board");
+for(let i=0;i<25;i++){
+ let c=document.createElement("div");
+ c.className="cell";c.id="c"+i;
+ board.appendChild(c);
+}
+function draw(){
+ for(let i=0;i<25;i++)document.getElementById("c"+i).textContent="";
+ for(let p=0;p<4;p++){
+  let pos=(steps[p]*7+p*5)%25;
+  document.getElementById("c"+pos).textContent+=colors[p];
+ }
+}
+function roll(){
+ let n=Math.floor(Math.random()*6)+1;
+ document.getElementById("dice").textContent=["⚀","⚁","⚂","⚃","⚄","⚅"][n-1];
+ steps[player]+=n;
+ if(steps[player]>=20){
+  draw();
+  document.getElementById("msg").textContent=colors[player]+" Player wins! 🏆";
+  document.getElementById("turn").textContent="Game Over!";
+  return;
+ }
+ draw();
+ document.getElementById("msg").textContent=colors[player]+" Player rolled "+n;
+ player=(player+1)%4;
+ document.getElementById("turn").textContent=colors[player]+" Player's Turn";
+}
+draw();
+</script>
+</body>
+</html>
